@@ -197,7 +197,7 @@ export default function LedgerPage() {
         {/* Transaction Table */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           {/* Desktop Table Header */}
-          <div className="hidden sm:grid grid-cols-[80px_1fr_1fr_1fr_1fr_100px_36px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500">
+          <div className="hidden sm:grid grid-cols-[80px_1fr_1fr_1fr_1fr_100px_72px] gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500">
             <span>날짜</span>
             <span>비용 항목</span>
             <span>자산/카드</span>
@@ -216,7 +216,7 @@ export default function LedgerPage() {
               {transactions.map((t) => (
                 <li key={t.id}>
                   {/* Desktop */}
-                  <div className="hidden sm:grid grid-cols-[80px_1fr_1fr_1fr_1fr_100px_36px] gap-2 px-4 py-3 items-center text-sm">
+                  <div className="hidden sm:grid grid-cols-[80px_1fr_1fr_1fr_1fr_100px_72px] gap-2 px-4 py-3 items-center text-sm">
                     <span className="text-gray-500">{formatDate(t.date)}</span>
                     <span className="text-gray-700 truncate">{t.category?.name ?? "-"}</span>
                     <span className="text-gray-700 truncate">{t.paymentMethod?.name ?? "-"}</span>
@@ -225,11 +225,18 @@ export default function LedgerPage() {
                     <span className={`text-right font-semibold ${t.type === "INCOME" ? "text-blue-600" : "text-red-600"}`}>
                       {t.type === "INCOME" ? "+" : "-"}{formatAmount(t.amount)}
                     </span>
-                    <button onClick={() => handleDelete(t.id)} className="text-gray-300 hover:text-red-400 transition justify-self-center">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <Link href={`/ledger/edit/${t.id}?year=${year}&month=${month}`} className="p-1 text-gray-300 hover:text-emerald-500 transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </Link>
+                      <button onClick={() => handleDelete(t.id)} className="p-1 text-gray-300 hover:text-red-400 transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   {/* Mobile */}
                   <div className="sm:hidden flex items-start px-4 py-3 gap-3">
@@ -252,11 +259,18 @@ export default function LedgerPage() {
                       </p>
                       <p className="text-xs text-gray-400">{formatDate(t.date)}</p>
                     </div>
-                    <button onClick={() => handleDelete(t.id)} className="text-gray-300 hover:text-red-400 transition flex-shrink-0 mt-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      <Link href={`/ledger/edit/${t.id}?year=${year}&month=${month}`} className="p-1 text-gray-300 hover:text-emerald-500 transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </Link>
+                      <button onClick={() => handleDelete(t.id)} className="p-1 text-gray-300 hover:text-red-400 transition">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}
