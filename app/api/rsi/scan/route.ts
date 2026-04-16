@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
 
   const stream = new ReadableStream({
     start(controller) {
-      const pythonCmd = process.platform === "win32" ? "py" : "python3";
+      const pythonCmd = process.platform === "win32"
+        ? "py"
+        : path.join(process.cwd(), "venv", "bin", "python3");
       const proc = spawn(pythonCmd, [scriptPath, targetDate], {
         env: { ...process.env, PYTHONIOENCODING: "utf-8" },
       });
