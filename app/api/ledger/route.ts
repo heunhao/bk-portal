@@ -10,6 +10,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()));
   const month = parseInt(searchParams.get("month") ?? String(new Date().getMonth() + 1));
+  const categoryId = searchParams.get("categoryId");
+  const paymentMethodId = searchParams.get("paymentMethodId");
+  const counterpart = searchParams.get("counterpart");
 
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
@@ -18,6 +21,13 @@ export async function GET(req: NextRequest) {
     where: {
       userId: session.user.id,
       date: { gte: start, lt: end },
+      ...(categoryId ? { categoryId } : {}),
+      ...(paymentMethodId ? { paymentMethodId } : {}),
+      ...(counterpart ? { counterpart: { contains: counterpart, mode: "insensitive" } } : {}),
+    },
+    include: {
+      category: true,
+      paymentMethod: true,
     },
     orderBy: { date: "desc" },
   });
@@ -30,9 +40,9 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { type, amount, category, description, date } = body;
+  const { type, amount, categoryId, paymentMethodId, counterpart, description, date } = body;
 
-  if (!type || !amount || !category || !date) {
+  if (!type || !amount || !date) {
     return NextResponse.json({ error: "필수 항목을 입력해주세요" }, { status: 400 });
   }
 
@@ -41,9 +51,15 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       type,
       amount: parseInt(amount),
-      category,
+      categoryId: categoryId || null,
+      paymentMethodId: paymentMethodId || null,
+      counterpart: counterpart || null,
       description: description || null,
       date: new Date(date),
+    },
+    include: {
+      category: true,
+      paymentMethod: true,
     },
   });
 
