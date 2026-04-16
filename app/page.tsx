@@ -26,6 +26,27 @@ const services = [
     description: "수입/지출 관리",
     color: "hover:border-emerald-300 hover:bg-emerald-50",
   },
+  {
+    href: "/rsi",
+    icon: (
+      <svg
+        className="w-10 h-10 text-indigo-500"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.5}
+          d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+        />
+      </svg>
+    ),
+    label: "RSI 종목 추출",
+    description: "코스피 반등 종목 스캔",
+    color: "hover:border-indigo-300 hover:bg-indigo-50",
+  },
 ];
 
 export default async function Home() {
