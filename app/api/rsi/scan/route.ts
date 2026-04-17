@@ -14,12 +14,13 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const targetDate: string = body.targetDate;
+  const mode: string = body.mode === "dead" ? "dead" : "golden";
 
   if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
     return NextResponse.json({ error: "올바른 날짜 형식을 입력해주세요 (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const scriptPath = path.join(process.cwd(), "python", "rsi_scan.py");
+  const scriptPath = path.join(process.cwd(), "python", "rsi_cutler_golden_dead_5days.py");
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
       const pythonCmd = process.platform === "win32"
         ? "py"
         : path.join(process.cwd(), "venv", "bin", "python3");
-      const proc = spawn(pythonCmd, [scriptPath, targetDate], {
+      const proc = spawn(pythonCmd, [scriptPath, mode, targetDate], {
         env: { ...process.env, PYTHONIOENCODING: "utf-8" },
       });
 

@@ -3,12 +3,18 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 
+type Mode = "golden" | "dead";
+
 interface StockResult {
   code: string;
   name: string;
-  price: number;
   rsi: number;
-  volRatio: number;
+  signal: number;
+  price: number;
+  volume: number;
+  special: "O" | "X";
+  ma5Break: "O" | "X";
+  specCol: string;
 }
 
 interface ScanStatus {
@@ -26,9 +32,17 @@ function today() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function yesterday() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function RsiPage() {
-  const [targetDate, setTargetDate] = useState(today());
+  const [mode, setMode] = useState<Mode>("golden");
+  const [targetDate, setTargetDate] = useState(yesterday());
   const [results, setResults] = useState<StockResult[]>([]);
+  const [specColLabel, setSpecColLabel] = useState("");
   const [status, setStatus] = useState<ScanStatus>({
     scanning: false,
     done: false,
@@ -48,6 +62,7 @@ export default function RsiPage() {
     }
 
     setResults([]);
+    setSpecColLabel("");
     setStatus({ scanning: true, done: false, index: 0, total: 0, currentCode: "", currentName: "", errorMessage: "" });
 
     const controller = new AbortController();
@@ -57,7 +72,7 @@ export default function RsiPage() {
       const res = await fetch("/api/rsi/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetDate }),
+        body: JSON.stringify({ targetDate, mode }),
         signal: controller.signal,
       });
 
@@ -85,14 +100,11 @@ export default function RsiPage() {
           if (!line) continue;
 
           let msg: Record<string, unknown>;
-          try {
-            msg = JSON.parse(line);
-          } catch {
-            continue;
-          }
+          try { msg = JSON.parse(line); } catch { continue; }
 
           if (msg.type === "start") {
             setStatus((s) => ({ ...s, total: msg.total as number }));
+            setSpecColLabel(msg.specCol as string);
           } else if (msg.type === "scanning") {
             setStatus((s) => ({
               ...s,
@@ -101,16 +113,17 @@ export default function RsiPage() {
               currentName: msg.name as string,
             }));
           } else if (msg.type === "result") {
-            setResults((prev) => [
-              ...prev,
-              {
-                code: msg.code as string,
-                name: msg.name as string,
-                price: msg.price as number,
-                rsi: msg.rsi as number,
-                volRatio: msg.volRatio as number,
-              },
-            ]);
+            setResults((prev) => [...prev, {
+              code    : msg.code     as string,
+              name    : msg.name     as string,
+              rsi     : msg.rsi      as number,
+              signal  : msg.signal   as number,
+              price   : msg.price    as number,
+              volume  : msg.volume   as number,
+              special : msg.special  as "O" | "X",
+              ma5Break: msg.ma5Break as "O" | "X",
+              specCol : msg.specCol  as string,
+            }]);
           } else if (msg.type === "done") {
             setStatus((s) => ({ ...s, scanning: false, done: true }));
           } else if (msg.type === "error") {
@@ -128,6 +141,7 @@ export default function RsiPage() {
   };
 
   const progressPct = status.total > 0 ? Math.round((status.index / status.total) * 100) : 0;
+  const isGolden = mode === "golden";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -144,29 +158,87 @@ export default function RsiPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-5">
-        {/* 날짜 입력 + 스캔 버튼 */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-          <p className="text-sm text-gray-500">
-            RSI 침체 후 반등 + MA20 돌파 + 거래량 급증 + 양봉 조건을 만족하는 코스피 종목을 추출합니다.
-          </p>
+        {/* 설정 패널 */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-5">
+
+          {/* 모드 선택 */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">분석 모드</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => !status.scanning && setMode("golden")}
+                disabled={status.scanning}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+                  isGolden
+                    ? "border-emerald-400 bg-emerald-50"
+                    : "border-gray-200 hover:border-gray-300"
+                } disabled:opacity-50`}
+              >
+                <span className="text-2xl">📈</span>
+                <div>
+                  <p className={`text-sm font-semibold ${isGolden ? "text-emerald-700" : "text-gray-700"}`}>
+                    골든크로스
+                  </p>
+                  <p className="text-xs text-gray-400">RSI가 Signal 위로 돌파 (매수)</p>
+                </div>
+              </button>
+              <button
+                onClick={() => !status.scanning && setMode("dead")}
+                disabled={status.scanning}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+                  !isGolden
+                    ? "border-red-400 bg-red-50"
+                    : "border-gray-200 hover:border-gray-300"
+                } disabled:opacity-50`}
+              >
+                <span className="text-2xl">📉</span>
+                <div>
+                  <p className={`text-sm font-semibold ${!isGolden ? "text-red-700" : "text-gray-700"}`}>
+                    데드크로스
+                  </p>
+                  <p className="text-xs text-gray-400">RSI가 Signal 아래로 돌파 (매도)</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* 날짜 + 스캔 버튼 */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">기준 날짜</label>
-              <input
-                type="date"
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-                disabled={status.scanning}
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
-              />
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">분석 기준일</label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  disabled={status.scanning}
+                  className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
+                />
+                <button
+                  onClick={() => setTargetDate(yesterday())}
+                  disabled={status.scanning}
+                  className="text-xs px-3 py-2 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
+                >
+                  어제
+                </button>
+                <button
+                  onClick={() => setTargetDate(today())}
+                  disabled={status.scanning}
+                  className="text-xs px-3 py-2 border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 disabled:opacity-40 whitespace-nowrap"
+                >
+                  오늘
+                </button>
+              </div>
             </div>
             <div className="flex items-end">
               <button
                 onClick={handleScan}
-                className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`w-full sm:w-auto px-7 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                   status.scanning
                     ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
-                    : "bg-indigo-600 text-white hover:bg-indigo-700"
+                    : isGolden
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    : "bg-red-500 text-white hover:bg-red-600"
                 }`}
               >
                 {status.scanning ? "중단" : "스캔 시작"}
@@ -188,7 +260,9 @@ export default function RsiPage() {
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
               <div
-                className={`h-2 rounded-full transition-all duration-300 ${status.done ? "bg-emerald-500" : "bg-indigo-500"}`}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  status.done ? "bg-emerald-500" : isGolden ? "bg-emerald-500" : "bg-red-500"
+                }`}
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -211,49 +285,66 @@ export default function RsiPage() {
         {results.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-800 text-sm">포착 종목</h2>
-              <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2.5 py-1 rounded-full">
+              <h2 className="font-semibold text-gray-800 text-sm">
+                {isGolden ? "📈 골든크로스" : "📉 데드크로스"} 포착 종목
+              </h2>
+              <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                isGolden ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"
+              }`}>
                 {results.length}건
               </span>
             </div>
 
-            {/* 테이블 헤더 */}
-            <div className="hidden sm:grid grid-cols-[100px_1fr_120px_90px_110px] gap-2 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500">
+            {/* 데스크탑 헤더 */}
+            <div className="hidden sm:grid grid-cols-[90px_1fr_70px_80px_110px_90px_90px_90px] gap-1 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-medium text-gray-500">
               <span>코드</span>
               <span>종목명</span>
-              <span className="text-right">현재가</span>
               <span className="text-right">RSI</span>
-              <span className="text-right">거래량비율</span>
+              <span className="text-right">시그널</span>
+              <span className="text-right">현재가</span>
+              <span className="text-right">거래량</span>
+              <span className="text-center">{specColLabel || (isGolden ? "과매도_탈출" : "과매수_진입")}</span>
+              <span className="text-center">MA5양봉돌파</span>
             </div>
 
             <ul className="divide-y divide-gray-100">
-              {results.map((stock, idx) => (
-                <li key={`${stock.code}-${idx}`}>
-                  {/* Desktop */}
-                  <div className="hidden sm:grid grid-cols-[100px_1fr_120px_90px_110px] gap-2 px-5 py-3.5 items-center text-sm">
-                    <span className="font-mono text-gray-500 text-xs">{stock.code}</span>
-                    <span className="font-medium text-gray-800">{stock.name}</span>
-                    <span className="text-right text-gray-700 font-semibold">
-                      {stock.price.toLocaleString()}원
+              {results.map((s, idx) => (
+                <li key={`${s.code}-${idx}`}>
+                  {/* 데스크탑 */}
+                  <div className="hidden sm:grid grid-cols-[90px_1fr_70px_80px_110px_90px_90px_90px] gap-1 px-5 py-3 items-center text-sm">
+                    <span className="font-mono text-gray-400 text-xs">{s.code}</span>
+                    <span className="font-medium text-gray-800 truncate">{s.name}</span>
+                    <span className={`text-right font-semibold ${s.rsi <= 30 ? "text-red-500" : s.rsi >= 70 ? "text-orange-500" : "text-gray-700"}`}>
+                      {s.rsi}
                     </span>
-                    <span className={`text-right font-semibold ${stock.rsi <= 30 ? "text-red-500" : stock.rsi <= 40 ? "text-orange-500" : "text-gray-700"}`}>
-                      {stock.rsi}
+                    <span className="text-right text-gray-500">{s.signal}</span>
+                    <span className="text-right font-semibold text-gray-800">{s.price.toLocaleString()}원</span>
+                    <span className="text-right text-gray-500 text-xs">{s.volume.toLocaleString()}</span>
+                    <span className={`text-center font-bold ${s.special === "O" ? (isGolden ? "text-red-500" : "text-blue-500") : "text-gray-300"}`}>
+                      {s.special}
                     </span>
-                    <span className="text-right text-indigo-600 font-semibold">{stock.volRatio}x</span>
+                    <span className={`text-center font-bold ${s.ma5Break === "O" ? "text-indigo-500" : "text-gray-300"}`}>
+                      {s.ma5Break}
+                    </span>
                   </div>
-                  {/* Mobile */}
+                  {/* 모바일 */}
                   <div className="sm:hidden flex items-center px-4 py-3.5 gap-3">
-                    <div className="w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm ${
+                      isGolden ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                    }`}>
+                      {isGolden ? "↑" : "↓"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800">{stock.name}</p>
-                      <p className="text-xs text-gray-400">{stock.code} · RSI {stock.rsi} · {stock.volRatio}x</p>
+                      <p className="text-sm font-medium text-gray-800">{s.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {s.code} · RSI {s.rsi} / 시그널 {s.signal}
+                        {s.special === "O" && <span className={isGolden ? " · 🔴과매도탈출" : " · 🔵과매수진입"}></span>}
+                        {s.ma5Break === "O" && " · 📊MA5돌파"}
+                      </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-semibold text-gray-800">{stock.price.toLocaleString()}원</p>
+                      <p className="text-sm font-semibold text-gray-800">{s.price.toLocaleString()}원</p>
+                      <p className="text-xs text-gray-400">{s.volume.toLocaleString()}</p>
                     </div>
                   </div>
                 </li>
