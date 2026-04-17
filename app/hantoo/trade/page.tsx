@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 type Side = "BUY" | "SELL";
@@ -14,6 +15,7 @@ interface OrderResult {
 }
 
 export default function HantooTradePage() {
+  const searchParams = useSearchParams();
   const [code, setCode]           = useState("");
   const [qty, setQty]             = useState("");
   const [side, setSide]           = useState<Side>("BUY");
@@ -23,10 +25,17 @@ export default function HantooTradePage() {
   const [loading, setLoading]     = useState(false);
   const [result, setResult]       = useState<OrderResult | null>(null);
 
+  useEffect(() => {
+    const c = searchParams.get("code");
+    const s = searchParams.get("side");
+    if (c) setCode(c);
+    if (s === "BUY" || s === "SELL") setSide(s);
+  }, [searchParams]);
+
   const isBuy    = side === "BUY";
   const isMarket = orderType === "01";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!code.trim() || !qty.trim()) return;
     if (!isMarket && !price.trim()) return;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 type Mode = "golden" | "dead";
@@ -53,6 +54,11 @@ export default function RsiPage() {
     errorMessage: "",
   });
   const abortRef = useRef<AbortController | null>(null);
+  const router = useRouter();
+
+  const handleDoubleClick = (stock: StockResult) => {
+    router.push(`/hantoo/trade?code=${stock.code}&side=BUY`);
+  };
 
   const handleScan = async () => {
     if (status.scanning) {
@@ -307,9 +313,17 @@ export default function RsiPage() {
               <span className="text-center">MA5양봉돌파</span>
             </div>
 
+            <div className="px-5 py-2 bg-indigo-50 border-b border-indigo-100">
+              <p className="text-xs text-indigo-400">더블클릭 시 한국투자증권 매수 주문 페이지로 이동합니다</p>
+            </div>
             <ul className="divide-y divide-gray-100">
               {results.map((s, idx) => (
-                <li key={`${s.code}-${idx}`}>
+                <li
+                  key={`${s.code}-${idx}`}
+                  onDoubleClick={() => handleDoubleClick(s)}
+                  className="cursor-pointer hover:bg-indigo-50 transition-colors select-none"
+                  title={`${s.name} — 더블클릭하여 매수 주문`}
+                >
                   {/* 데스크탑 */}
                   <div className="hidden sm:grid grid-cols-[90px_1fr_70px_80px_110px_90px_90px_90px] gap-1 px-5 py-3 items-center text-sm">
                     <span className="font-mono text-gray-400 text-xs">{s.code}</span>
