@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { spawn } from "child_process";
 import path from "path";
 
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
       });
 
       let buffer = "";
+      let specColLabel = "";
 
       proc.stdout.on("data", (chunk: Buffer) => {
         buffer += chunk.toString("utf8");
@@ -41,9 +43,45 @@ export async function POST(req: NextRequest) {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (trimmed) {
-            controller.enqueue(encoder.encode(`data: ${trimmed}\n\n`));
-          }
+          if (!trimmed) continue;
+
+          controller.enqueue(encoder.encode(`data: ${trimmed}\n\n`));
+
+          try {
+            const msg = JSON.parse(trimmed) as Record<string, unknown>;
+            if (msg.type === "start") {
+              specColLabel = (msg.specCol as string) ?? "";
+            } else if (msg.type === "result") {
+              prisma.rsiResult.upsert({
+                where: { date_mode_code: { date: targetDate, mode, code: msg.code as string } },
+                update: {
+                  name: msg.name as string,
+                  rsi: msg.rsi as number,
+                  signal: msg.signal as number,
+                  price: msg.price as number,
+                  volume: msg.volume as number,
+                  special: msg.special as string,
+                  ma5Break: msg.ma5Break as string,
+                  specCol: msg.specCol as string,
+                  specColLabel,
+                },
+                create: {
+                  date: targetDate,
+                  mode,
+                  code: msg.code as string,
+                  name: msg.name as string,
+                  rsi: msg.rsi as number,
+                  signal: msg.signal as number,
+                  price: msg.price as number,
+                  volume: msg.volume as number,
+                  special: msg.special as string,
+                  ma5Break: msg.ma5Break as string,
+                  specCol: msg.specCol as string,
+                  specColLabel,
+                },
+              }).catch(console.error);
+            }
+          } catch { /* ignore JSON parse errors */ }
         }
       });
 

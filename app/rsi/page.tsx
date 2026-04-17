@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -44,6 +44,8 @@ export default function RsiPage() {
   const [targetDate, setTargetDate] = useState(yesterday());
   const [results, setResults] = useState<StockResult[]>([]);
   const [specColLabel, setSpecColLabel] = useState("");
+  const [hasDbData, setHasDbData] = useState(false);
+  const [dbLoading, setDbLoading] = useState(false);
   const [status, setStatus] = useState<ScanStatus>({
     scanning: false,
     done: false,
@@ -56,8 +58,39 @@ export default function RsiPage() {
   const abortRef = useRef<AbortController | null>(null);
   const router = useRouter();
 
+  const loadFromDb = useCallback(async (date: string, m: Mode) => {
+    setDbLoading(true);
+    setResults([]);
+    setSpecColLabel("");
+    setHasDbData(false);
+    setStatus((s) => ({ ...s, done: false, errorMessage: "" }));
+    try {
+      const res = await fetch(`/api/rsi/results?date=${date}&mode=${m}`);
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        setResults(data.results);
+        setSpecColLabel(data.specColLabel ?? "");
+        setHasDbData(true);
+        setStatus((s) => ({ ...s, done: true }));
+      }
+    } catch { /* ignore */ } finally {
+      setDbLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFromDb(targetDate, mode);
+  }, [targetDate, mode, loadFromDb]);
+
   const handleDoubleClick = (stock: StockResult) => {
-    router.push(`/hantoo/trade?code=${stock.code}&side=BUY`);
+    router.push(`/hantoo/trade?code=${stock.code}&name=${encodeURIComponent(stock.name)}&side=BUY`);
+  };
+
+  const handleDelete = async () => {
+    await fetch(`/api/rsi/results?date=${targetDate}&mode=${mode}`, { method: "DELETE" });
+    setResults([]);
+    setHasDbData(false);
+    setStatus((s) => ({ ...s, done: false }));
   };
 
   const handleScan = async () => {
@@ -69,6 +102,7 @@ export default function RsiPage() {
 
     setResults([]);
     setSpecColLabel("");
+    setHasDbData(false);
     setStatus({ scanning: true, done: false, index: 0, total: 0, currentCode: "", currentName: "", errorMessage: "" });
 
     const controller = new AbortController();
@@ -132,6 +166,7 @@ export default function RsiPage() {
             }]);
           } else if (msg.type === "done") {
             setStatus((s) => ({ ...s, scanning: false, done: true }));
+            setHasDbData(true);
           } else if (msg.type === "error") {
             setStatus((s) => ({ ...s, scanning: false, errorMessage: msg.message as string }));
           }
@@ -148,6 +183,8 @@ export default function RsiPage() {
 
   const progressPct = status.total > 0 ? Math.round((status.index / status.total) * 100) : 0;
   const isGolden = mode === "golden";
+  const canScan = !status.scanning && !hasDbData && !dbLoading;
+  const canDelete = !status.scanning && hasDbData && !dbLoading;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -208,7 +245,7 @@ export default function RsiPage() {
             </div>
           </div>
 
-          {/* 날짜 + 스캔 버튼 */}
+          {/* 날짜 + 스캔 버튼 + 삭제 버튼 */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-500 mb-1.5">분석 기준일</label>
@@ -218,7 +255,7 @@ export default function RsiPage() {
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
                   disabled={status.scanning}
-                  className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
+                  className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
                 />
                 <button
                   onClick={() => setTargetDate(yesterday())}
@@ -236,21 +273,36 @@ export default function RsiPage() {
                 </button>
               </div>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <button
                 onClick={handleScan}
-                className={`w-full sm:w-auto px-7 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                disabled={!canScan}
+                className={`px-7 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                   status.scanning
                     ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
                     : isGolden
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                    : "bg-red-500 text-white hover:bg-red-600"
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    : "bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
                 }`}
               >
                 {status.scanning ? "중단" : "스캔 시작"}
               </button>
+              <button
+                onClick={handleDelete}
+                disabled={!canDelete}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                결과 삭제
+              </button>
             </div>
           </div>
+
+          {/* DB 캐시 알림 */}
+          {hasDbData && !status.scanning && (
+            <p className="text-xs text-indigo-500">
+              저장된 결과를 불러왔습니다. 다시 스캔하려면 결과를 삭제하세요.
+            </p>
+          )}
         </div>
 
         {/* 진행 상황 */}
@@ -293,6 +345,7 @@ export default function RsiPage() {
             <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 text-sm">
                 {isGolden ? "📈 골든크로스" : "📉 데드크로스"} 포착 종목
+                <span className="ml-2 text-xs font-normal text-gray-400">{targetDate}</span>
               </h2>
               <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
                 isGolden ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"

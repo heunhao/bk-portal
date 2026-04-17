@@ -107,3 +107,23 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+model RsiResult {
+  id           String   @id @default(cuid())
+  date         String
+  mode         String
+  code         String
+  name         String
+  rsi          Float
+  signal       Float
+  price        Int
+  volume       Int
+  special      String
+  ma5Break     String
+  specCol      String
+  specColLabel String   @default("")
+  createdAt    DateTime @default(now())
+
+  @@unique([date, mode, code])
+  @@index([date, mode])
+}

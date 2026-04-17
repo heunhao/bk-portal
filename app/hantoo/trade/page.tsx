@@ -27,17 +27,21 @@ function TradeForm() {
 
   useEffect(() => {
     const c = searchParams.get("code");
+    const n = searchParams.get("name");
     const s = searchParams.get("side");
-    if (c) setCode(c);
+    if (c) setCode(n ? `${n}(${c})` : c);
     if (s === "BUY" || s === "SELL") setSide(s);
   }, [searchParams]);
+
+  // 실제 주문에 사용할 6자리 코드만 추출
+  const codeOnly = code.replace(/\D/g, "").slice(0, 6);
 
   const isBuy    = side === "BUY";
   const isMarket = orderType === "01";
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!code.trim() || !qty.trim()) return;
+    if (!codeOnly || codeOnly.length !== 6 || !qty.trim()) return;
     if (!isMarket && !price.trim()) return;
     setConfirm(true);
     setResult(null);
@@ -50,7 +54,7 @@ function TradeForm() {
       const res = await fetch("/api/hantoo/trade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim(), qty, side, orderType, price: isMarket ? "0" : price }),
+        body: JSON.stringify({ code: codeOnly, qty, side, orderType, price: isMarket ? "0" : price }),
       });
       const data: OrderResult = await res.json();
       setResult(data);
@@ -119,12 +123,14 @@ function TradeForm() {
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="예: 005930"
-              maxLength={6}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="예: 005930 또는 삼성전자(005930)"
               required
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-300"
             />
+            {codeOnly.length > 0 && codeOnly.length !== 6 && (
+              <p className="text-xs text-red-400 mt-1">6자리 종목코드가 필요합니다 (현재: {codeOnly.length}자리)</p>
+            )}
           </div>
 
           {/* 주문수량 */}
@@ -137,7 +143,7 @@ function TradeForm() {
               placeholder="주"
               min={1}
               required
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-300"
             />
           </div>
 
@@ -173,7 +179,7 @@ function TradeForm() {
                 placeholder="원"
                 min={1}
                 required={!isMarket}
-                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-300"
               />
             </div>
           )}
@@ -196,7 +202,7 @@ function TradeForm() {
             <h2 className="font-bold text-gray-900 text-base">최종 주문 확인</h2>
             <div className="space-y-2 text-sm">
               {[
-                ["종목코드", code],
+                ["종목코드", codeOnly],
                 ["구분", isBuy ? "매수" : "매도"],
                 ["수량", `${Number(qty).toLocaleString()}주`],
                 ["가격", isMarket ? "시장가" : `${Number(price).toLocaleString()}원`],
@@ -208,6 +214,12 @@ function TradeForm() {
                   </span>
                 </div>
               ))}
+              {code !== codeOnly && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">종목명</span>
+                  <span className="font-semibold text-gray-800">{code.replace(/\(\d+\)$/, "")}</span>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3 pt-1">
               <button
