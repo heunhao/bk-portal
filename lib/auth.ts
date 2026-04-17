@@ -15,6 +15,9 @@ export const authOptions: NextAuthOptions = {
     strategy: "database",
   },
   callbacks: {
+    signIn({ user }) {
+      return user.email === "bkmngproject@gmail.com";
+    },
     session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
