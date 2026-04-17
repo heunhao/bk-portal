@@ -171,7 +171,11 @@ if __name__ == "__main__":
 
     raw_date = sys.argv[2] if len(sys.argv) > 2 else ""
     if not raw_date:
-        raw_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        # 직전 거래일 자동 계산 (주말 건너뜀)
+        d = datetime.today() - timedelta(days=1)
+        while d.weekday() >= 5:
+            d -= timedelta(days=1)
+        raw_date = d.strftime("%Y-%m-%d")
     if len(raw_date) == 8 and raw_date.isdigit():
         raw_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}"
 
