@@ -38,6 +38,7 @@ yarn-error.log*
 # secrets (API keys - do not commit)
 python/config.json
 python/hantoo_token.dat
+python/loss_alerts.json
 
 # vercel
 .vercel
