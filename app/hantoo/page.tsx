@@ -66,6 +66,20 @@ export default async function HantooPage() {
             </div>
           </Link>
 
+          <Link
+            href="/hantoo/profit"
+            className="flex flex-col items-center justify-center gap-3 p-6 bg-white rounded-2xl border border-gray-200 transition-all hover:border-violet-300 hover:bg-violet-50"
+          >
+            <svg className="w-10 h-10 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            <div className="text-center">
+              <p className="font-semibold text-gray-800 text-sm">매매손익</p>
+              <p className="text-xs text-gray-400 mt-0.5">기간별 손익 현황</p>
+            </div>
+          </Link>
+
         </div>
       </main>
     </div>
