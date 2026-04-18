@@ -108,6 +108,20 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model LossAlert {
+  id        String   @id @default(cuid())
+  date      String
+  code      String
+  name      String
+  lossRate  Float
+  price     Int
+  threshold Float
+  alertedAt DateTime @default(now())
+
+  @@unique([date, code])
+  @@index([date])
+}
+
 model RsiResult {
   id           String   @id @default(cuid())
   date         String
