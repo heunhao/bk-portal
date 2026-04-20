@@ -1,8 +1,9 @@
 ##############################################################
 # 한국투자증권 보유 종목 손실률 모니터 (cron용)
-# - 거래시간(09:00~15:30 KST) 중에만 동작
+# - 거래시간(09:00~15:30 KST) 평일에만 동작
 # - 손실률이 monitor_config.json의 lossThreshold 이상이면 텔레그램 알림
-# - 알림 이력은 loss_alerts.json에 저장 (당일 종목당 1회)
+# - 알림 이력은 DB에 저장 (PORTAL_URL + MONITOR_SECRET via config.json)
+# - 당일 종목당 1회만 알림
 ##############################################################
 
 import os
@@ -11,15 +12,13 @@ import json
 import datetime
 import requests
 
-SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE  = os.path.join(SCRIPT_DIR, "config.json")
-MONITOR_CFG  = os.path.join(SCRIPT_DIR, "monitor_config.json")
-TOKEN_FILE   = os.path.join(SCRIPT_DIR, "hantoo_token.dat")
-ALERTS_FILE  = os.path.join(SCRIPT_DIR, "loss_alerts.json")
-BASE_URL     = "https://openapi.koreainvestment.com:9443"
+SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
+MONITOR_CFG = os.path.join(SCRIPT_DIR, "monitor_config.json")
+TOKEN_FILE  = os.path.join(SCRIPT_DIR, "hantoo_token.dat")
+BASE_URL    = "https://openapi.koreainvestment.com:9443"
 
 
-# ── 거래시간 체크 (KST 09:00 ~ 15:30, 평일) ──────────────────
 def is_trading_time():
     now_kst = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
     if now_kst.weekday() >= 5:
@@ -28,7 +27,6 @@ def is_trading_time():
     return datetime.time(9, 0) <= t <= datetime.time(15, 30)
 
 
-# ── 설정 로드 ─────────────────────────────────────────────────
 def load_config():
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -39,6 +37,8 @@ def load_config():
         cfg.get("HANTOO_ACNT_PRDT_CD", "01"),
         cfg.get("TELEGRAM_TOKEN", ""),
         cfg.get("TELEGRAM_CHAT_ID", ""),
+        cfg.get("MONITOR_SECRET", ""),
+        cfg.get("PORTAL_URL", "http://localhost:3000"),
     )
 
 
@@ -50,7 +50,6 @@ def load_threshold():
         return 3.0
 
 
-# ── 토큰 ─────────────────────────────────────────────────────
 def get_access_token(app_key, app_secret):
     if os.path.exists(TOKEN_FILE):
         with open(TOKEN_FILE, "r", encoding="utf-8") as f:
@@ -76,7 +75,6 @@ def get_access_token(app_key, app_secret):
     return token
 
 
-# ── 보유잔고_실현손익 조회 (TTTC8494R) ───────────────────────
 def get_holdings(token, app_key, app_secret, cano, acnt_prdt_cd):
     url = f"{BASE_URL}/uapi/domestic-stock/v1/trading/inquire-balance-rlz-pl"
     headers = {
@@ -110,46 +108,52 @@ def get_holdings(token, app_key, app_secret, cano, acnt_prdt_cd):
     return data.get("output1", [])
 
 
-# ── 알림 이력 관리 ────────────────────────────────────────────
-def load_alerts():
-    if not os.path.exists(ALERTS_FILE):
-        return []
-    with open(ALERTS_FILE, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except Exception:
-            return []
+def save_alert_to_db(portal_url, secret, alert):
+    """DB에 알림 저장 (Next.js API 호출)"""
+    try:
+        res = requests.post(
+            f"{portal_url}/api/hantoo/alerts",
+            headers={"Content-Type": "application/json", "x-monitor-secret": secret},
+            json=alert,
+            timeout=10,
+        )
+        return res.status_code == 200
+    except Exception as e:
+        print(f"DB 저장 실패: {e}", file=sys.stderr)
+        return False
 
 
-def save_alerts(alerts):
-    with open(ALERTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(alerts, f, ensure_ascii=False, indent=2)
-
-
-def already_alerted_today(alerts, code):
+def is_alerted_today(portal_url, secret, code):
+    """오늘 이미 알림 발송 여부 확인"""
     today = datetime.date.today().isoformat()
-    return any(a["date"] == today and a["code"] == code for a in alerts)
+    try:
+        res = requests.get(
+            f"{portal_url}/api/hantoo/alerts/check",
+            headers={"x-monitor-secret": secret},
+            params={"date": today, "code": code},
+            timeout=10,
+        )
+        return res.json().get("exists", False)
+    except Exception:
+        return False
 
 
-# ── 텔레그램 ─────────────────────────────────────────────────
 def send_telegram(token, chat_id, message):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     requests.post(url, data={"chat_id": chat_id, "text": message, "parse_mode": "HTML"},
                   timeout=10)
 
 
-# ── 메인 ─────────────────────────────────────────────────────
 def main():
     if not is_trading_time():
         print("거래시간 외 - 종료")
         return
 
-    app_key, app_secret, cano, acnt_prdt_cd, tg_token, tg_chat = load_config()
+    app_key, app_secret, cano, acnt_prdt_cd, tg_token, tg_chat, secret, portal_url = load_config()
     threshold = load_threshold()
 
     token    = get_access_token(app_key, app_secret)
     holdings = get_holdings(token, app_key, app_secret, cano, acnt_prdt_cd)
-    alerts   = load_alerts()
 
     triggered = []
     for item in holdings:
@@ -162,28 +166,22 @@ def main():
         loss_rate = float(item.get("evlu_pfls_rt", "0") or "0")
         price     = int(item.get("prpr", "0") or "0")
 
-        if loss_rate <= -threshold and not already_alerted_today(alerts, code):
-            triggered.append({
-                "date"      : datetime.date.today().isoformat(),
-                "code"      : code,
-                "name"      : name,
-                "lossRate"  : round(loss_rate, 2),
-                "price"     : price,
-                "threshold" : threshold,
-                "alertedAt" : datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-            })
+        if loss_rate <= -threshold and not is_alerted_today(portal_url, secret, code):
+            alert = {
+                "date"     : datetime.date.today().isoformat(),
+                "code"     : code,
+                "name"     : name,
+                "lossRate" : round(loss_rate, 2),
+                "price"    : price,
+                "threshold": threshold,
+            }
+            if save_alert_to_db(portal_url, secret, alert):
+                triggered.append(alert)
 
     if triggered:
-        alerts.extend(triggered)
-        # 최근 180일 이력만 유지
-        cutoff = (datetime.date.today() - datetime.timedelta(days=180)).isoformat()
-        alerts = [a for a in alerts if a["date"] >= cutoff]
-        save_alerts(alerts)
-
         lines = [f"⚠️ <b>손실률 경보 ({threshold}% 초과)</b>\n"]
         for t in triggered:
-            sign = "▼"
-            lines.append(f"{sign} <b>{t['name']}</b> ({t['code']})")
+            lines.append(f"▼ <b>{t['name']}</b> ({t['code']})")
             lines.append(f"   현재가: {t['price']:,}원 / 손실률: {t['lossRate']:.2f}%\n")
         send_telegram(tg_token, tg_chat, "\n".join(lines))
 

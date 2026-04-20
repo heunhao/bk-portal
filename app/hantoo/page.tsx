@@ -95,6 +95,48 @@ export default async function HantooPage() {
           </Link>
 
           <Link
+            href="/hantoo/auto-sell"
+            className="flex flex-col items-center justify-center gap-3 p-6 bg-white rounded-2xl border border-gray-200 transition-all hover:border-green-300 hover:bg-green-50"
+          >
+            <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="text-center">
+              <p className="font-semibold text-gray-800 text-sm">자동 매도</p>
+              <p className="text-xs text-gray-400 mt-0.5">+10% / -8% 조건</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/hantoo/auto-buy"
+            className="flex flex-col items-center justify-center gap-3 p-6 bg-white rounded-2xl border border-gray-200 transition-all hover:border-blue-300 hover:bg-blue-50"
+          >
+            <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <div className="text-center">
+              <p className="font-semibold text-gray-800 text-sm">자동 매수</p>
+              <p className="text-xs text-gray-400 mt-0.5">RSI 골든크로스 · 이력</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/hantoo/rsi-scan"
+            className="flex flex-col items-center justify-center gap-3 p-6 bg-white rounded-2xl border border-gray-200 transition-all hover:border-emerald-300 hover:bg-emerald-50"
+          >
+            <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            <div className="text-center">
+              <p className="font-semibold text-gray-800 text-sm">RSI 골든크로스</p>
+              <p className="text-xs text-gray-400 mt-0.5">수동 스캔</p>
+            </div>
+          </Link>
+
+          <Link
             href="/hantoo/settings"
             className="flex flex-col items-center justify-center gap-3 p-6 bg-white rounded-2xl border border-gray-200 transition-all hover:border-gray-300 hover:bg-gray-50"
           >
@@ -105,7 +147,7 @@ export default async function HantooPage() {
             </svg>
             <div className="text-center">
               <p className="font-semibold text-gray-800 text-sm">설정</p>
-              <p className="text-xs text-gray-400 mt-0.5">손실 경보 기준</p>
+              <p className="text-xs text-gray-400 mt-0.5">자동 매매 · 경보 기준</p>
             </div>
           </Link>
 

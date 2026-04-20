@@ -122,6 +122,29 @@ model LossAlert {
   @@index([date])
 }
 
+model BuyCondition {
+  id         String      @id @default(cuid())
+  label      String
+  order      Int         @default(0)
+  createdAt  DateTime    @default(now())
+  buyRecords BuyRecord[]
+}
+
+model BuyRecord {
+  id          String        @id @default(cuid())
+  code        String
+  name        String        @default("")
+  qty         Int
+  price       Int
+  orderType   String
+  conditionId String?
+  condition   BuyCondition? @relation(fields: [conditionId], references: [id], onDelete: SetNull)
+  orderedAt   DateTime      @default(now())
+
+  @@index([code])
+  @@index([orderedAt])
+}
+
 model RsiResult {
   id           String   @id @default(cuid())
   date         String
@@ -140,4 +163,65 @@ model RsiResult {
 
   @@unique([date, mode, code])
   @@index([date, mode])
+}
+
+model AutoSellCheck {
+  id             String   @id @default(cuid())
+  checkTime      DateTime
+  stockCode      String
+  stockName      String
+  holdQty        Int
+  avgPrice       Float
+  currentPrice   Float
+  evalAmount     Float
+  evalPflsAmount Float
+  evalPflsRate   Float
+  sellTriggered  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([checkTime])
+  @@index([stockCode])
+}
+
+model AutoSellOrder {
+  id          String   @id @default(cuid())
+  orderTime   DateTime
+  stockCode   String
+  stockName   String
+  orderQty    Int
+  triggerRate Float
+  orderNo     String?
+  resultCode  String?
+  resultMsg   String?
+  createdAt   DateTime @default(now())
+
+  @@index([orderTime])
+  @@index([stockCode])
+}
+
+model AutoBuyOrder {
+  id          String   @id @default(cuid())
+  orderTime   DateTime
+  stockCode   String
+  stockName   String
+  orderQty    Int
+  refPrice    Float
+  rsiValue    Float
+  signalValue Float
+  orderNo     String?
+  resultCode  String?
+  resultMsg   String?
+  createdAt   DateTime @default(now())
+
+  @@index([orderTime])
+  @@index([stockCode])
+}
+
+model RsiTarget {
+  id        String   @id @default(cuid())
+  stockCode String   @unique
+  stockName String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([stockCode])
 }

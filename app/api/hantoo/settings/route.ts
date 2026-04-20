@@ -4,31 +4,42 @@ import { authOptions } from "@/lib/auth";
 import fs from "fs/promises";
 import path from "path";
 
-const configPath = path.join(process.cwd(), "python", "monitor_config.json");
+const configPath   = path.join(process.cwd(), "python", "monitor_config.json");
+const defaultCfg   = { lossThreshold: 3.0, autoTradeEnabled: true };
+
+async function readConfig() {
+  try {
+    const raw = await fs.readFile(configPath, "utf-8");
+    return { ...defaultCfg, ...JSON.parse(raw) };
+  } catch {
+    return { ...defaultCfg };
+  }
+}
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  try {
-    const raw = await fs.readFile(configPath, "utf-8");
-    return NextResponse.json(JSON.parse(raw));
-  } catch {
-    return NextResponse.json({ lossThreshold: 3.0 });
-  }
+  return NextResponse.json(await readConfig());
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
-  const threshold = parseFloat(body.lossThreshold);
+  const body    = await req.json();
+  const current = await readConfig();
 
-  if (isNaN(threshold) || threshold < 0.5 || threshold > 30) {
-    return NextResponse.json({ error: "0.5 ~ 30 범위로 입력해주세요." }, { status: 400 });
+  if (body.lossThreshold !== undefined) {
+    const v = parseFloat(body.lossThreshold);
+    if (isNaN(v) || v < 0.5 || v > 30)
+      return NextResponse.json({ error: "0.5 ~ 30 범위로 입력해주세요." }, { status: 400 });
+    current.lossThreshold = v;
   }
 
-  await fs.writeFile(configPath, JSON.stringify({ lossThreshold: threshold }, null, 2), "utf-8");
-  return NextResponse.json({ success: true, lossThreshold: threshold });
+  if (body.autoTradeEnabled !== undefined) {
+    current.autoTradeEnabled = Boolean(body.autoTradeEnabled);
+  }
+
+  await fs.writeFile(configPath, JSON.stringify(current, null, 2), "utf-8");
+  return NextResponse.json({ success: true, ...current });
 }

@@ -1,3 +1,4 @@
 {
-  "lossThreshold": 3.0
+  "lossThreshold": 3.0,
+  "autoTradeEnabled": true
 }

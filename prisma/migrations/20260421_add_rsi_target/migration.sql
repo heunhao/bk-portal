@@ -1,0 +1,63 @@
+-- RsiTarget: RSI 골든크로스 스캔 대상 종목
+CREATE TABLE "RsiTarget" (
+    "id"        TEXT NOT NULL,
+    "stockCode" TEXT NOT NULL,
+    "stockName" TEXT NOT NULL DEFAULT '',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RsiTarget_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "RsiTarget_stockCode_key" ON "RsiTarget"("stockCode");
+CREATE INDEX "RsiTarget_stockCode_idx" ON "RsiTarget"("stockCode");
+
+-- 초기 50개 종목 데이터
+INSERT INTO "RsiTarget" ("id","stockCode","stockName") VALUES
+  (gen_random_uuid()::text,'005930','삼성전자'),
+  (gen_random_uuid()::text,'000660','SK하이닉스'),
+  (gen_random_uuid()::text,'005935','삼성전자우'),
+  (gen_random_uuid()::text,'005380','현대차'),
+  (gen_random_uuid()::text,'373220','LG에너지솔루션'),
+  (gen_random_uuid()::text,'402340','SK스퀘어'),
+  (gen_random_uuid()::text,'207940','삼성바이오로직스'),
+  (gen_random_uuid()::text,'012450','한화에어로스페이스'),
+  (gen_random_uuid()::text,'034020','두산에너빌리티'),
+  (gen_random_uuid()::text,'000270','기아'),
+  (gen_random_uuid()::text,'105560','KB금융'),
+  (gen_random_uuid()::text,'329180','HD현대중공업'),
+  (gen_random_uuid()::text,'009150','삼성전기'),
+  (gen_random_uuid()::text,'032830','삼성생명'),
+  (gen_random_uuid()::text,'028260','삼성물산'),
+  (gen_random_uuid()::text,'055550','신한지주'),
+  (gen_random_uuid()::text,'068270','셀트리온'),
+  (gen_random_uuid()::text,'006400','삼성SDI'),
+  (gen_random_uuid()::text,'042660','한화오션'),
+  (gen_random_uuid()::text,'267260','HD현대일렉트릭'),
+  (gen_random_uuid()::text,'006800','미래에셋증권'),
+  (gen_random_uuid()::text,'012330','현대모비스'),
+  (gen_random_uuid()::text,'010130','고려아연'),
+  (gen_random_uuid()::text,'086790','하나금융지주'),
+  (gen_random_uuid()::text,'035420','NAVER'),
+  (gen_random_uuid()::text,'005490','POSCO홀딩스'),
+  (gen_random_uuid()::text,'015760','한국전력'),
+  (gen_random_uuid()::text,'298040','효성중공업'),
+  (gen_random_uuid()::text,'010120','LS ELECTRIC'),
+  (gen_random_uuid()::text,'034730','SK'),
+  (gen_random_uuid()::text,'042700','한미반도체'),
+  (gen_random_uuid()::text,'316140','우리금융지주'),
+  (gen_random_uuid()::text,'051910','LG화학'),
+  (gen_random_uuid()::text,'010140','삼성중공업'),
+  (gen_random_uuid()::text,'272210','한화시스템'),
+  (gen_random_uuid()::text,'064350','현대로템'),
+  (gen_random_uuid()::text,'000150','두산'),
+  (gen_random_uuid()::text,'096770','SK이노베이션'),
+  (gen_random_uuid()::text,'035720','카카오'),
+  (gen_random_uuid()::text,'000810','삼성화재'),
+  (gen_random_uuid()::text,'003670','포스코퓨처엠'),
+  (gen_random_uuid()::text,'017670','SK텔레콤'),
+  (gen_random_uuid()::text,'079550','LIG넥스원'),
+  (gen_random_uuid()::text,'066570','LG전자'),
+  (gen_random_uuid()::text,'267250','HD현대'),
+  (gen_random_uuid()::text,'011200','HMM'),
+  (gen_random_uuid()::text,'138040','메리츠금융지주'),
+  (gen_random_uuid()::text,'033780','KT&G'),
+  (gen_random_uuid()::text,'000720','현대건설');

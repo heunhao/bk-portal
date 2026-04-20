@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import path from "path";
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { code, qty, side, orderType, price } = body;
+  const { code, qty, side, orderType, price, conditionId, name } = body;
 
   if (!code || !qty || !side || !orderType) {
     return NextResponse.json({ success: false, error: "필수 항목이 누락되었습니다." }, { status: 400 });
@@ -38,6 +39,20 @@ export async function POST(req: NextRequest) {
     );
     if (stderr) console.error("[hantoo_trade stderr]", stderr);
     const result = JSON.parse(stdout.trim());
+
+    if (result.success && side === "BUY") {
+      await prisma.buyRecord.create({
+        data: {
+          code: String(code),
+          name: name ? String(name) : "",
+          qty: parseInt(String(qty)),
+          price: parseInt(finalPrice),
+          orderType,
+          conditionId: conditionId || null,
+        },
+      }).catch((e) => console.error("[buyRecord save error]", e));
+    }
+
     return NextResponse.json(result);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "주문 실패";

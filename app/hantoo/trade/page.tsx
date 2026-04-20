@@ -14,16 +14,23 @@ interface OrderResult {
   error?: string;
 }
 
+interface BuyCondition {
+  id: string;
+  label: string;
+}
+
 function TradeForm() {
   const searchParams = useSearchParams();
-  const [code, setCode]           = useState("");
-  const [qty, setQty]             = useState("");
-  const [side, setSide]           = useState<Side>("BUY");
-  const [orderType, setOrderType] = useState<OrderType>("00");
-  const [price, setPrice]         = useState("");
-  const [confirm, setConfirm]     = useState(false);
-  const [loading, setLoading]     = useState(false);
-  const [result, setResult]       = useState<OrderResult | null>(null);
+  const [code, setCode]               = useState("");
+  const [qty, setQty]                 = useState("");
+  const [side, setSide]               = useState<Side>("BUY");
+  const [orderType, setOrderType]     = useState<OrderType>("00");
+  const [price, setPrice]             = useState("");
+  const [conditionId, setConditionId] = useState("");
+  const [conditions, setConditions]   = useState<BuyCondition[]>([]);
+  const [confirm, setConfirm]         = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [result, setResult]           = useState<OrderResult | null>(null);
 
   useEffect(() => {
     const c = searchParams.get("code");
@@ -33,13 +40,20 @@ function TradeForm() {
     if (s === "BUY" || s === "SELL") setSide(s);
   }, [searchParams]);
 
-  // 실제 주문에 사용할 6자리 코드만 추출
+  useEffect(() => {
+    fetch("/api/hantoo/buy-conditions")
+      .then((r) => r.json())
+      .then((d) => setConditions(d.conditions ?? []))
+      .catch(() => {});
+  }, []);
+
   const codeOnly = code.replace(/\D/g, "").slice(0, 6);
+  const nameOnly = code.includes("(") ? code.replace(/\(\d+\)$/, "").trim() : "";
 
   const isBuy    = side === "BUY";
   const isMarket = orderType === "01";
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!codeOnly || codeOnly.length !== 6 || !qty.trim()) return;
     if (!isMarket && !price.trim()) return;
@@ -54,7 +68,15 @@ function TradeForm() {
       const res = await fetch("/api/hantoo/trade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: codeOnly, qty, side, orderType, price: isMarket ? "0" : price }),
+        body: JSON.stringify({
+          code: codeOnly,
+          name: nameOnly,
+          qty,
+          side,
+          orderType,
+          price: isMarket ? "0" : price,
+          conditionId: isBuy && conditionId ? conditionId : undefined,
+        }),
       });
       const data: OrderResult = await res.json();
       setResult(data);
@@ -66,8 +88,11 @@ function TradeForm() {
   };
 
   const reset = () => {
-    setCode(""); setQty(""); setPrice(""); setResult(null); setSide("BUY"); setOrderType("00");
+    setCode(""); setQty(""); setPrice(""); setResult(null);
+    setSide("BUY"); setOrderType("00"); setConditionId("");
   };
+
+  const selectedCondition = conditions.find((c) => c.id === conditionId);
 
   return (
     <main className="max-w-md mx-auto px-4 py-6 space-y-4">
@@ -184,6 +209,46 @@ function TradeForm() {
             </div>
           )}
 
+          {/* 매수 사유 (BUY only) */}
+          {isBuy && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">매수 사유/조건</label>
+              {conditions.length === 0 ? (
+                <p className="text-xs text-gray-400">
+                  <Link href="/hantoo/settings" className="text-blue-400 underline">설정</Link>에서 매수 조건을 추가하세요.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConditionId("")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border-2 transition-all ${
+                      conditionId === ""
+                        ? "border-gray-400 bg-gray-100 text-gray-700"
+                        : "border-gray-200 text-gray-400 hover:border-gray-300"
+                    }`}
+                  >
+                    미선택
+                  </button>
+                  {conditions.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setConditionId(c.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border-2 transition-all ${
+                        conditionId === c.id
+                          ? "border-orange-400 bg-orange-50 text-orange-600"
+                          : "border-gray-200 text-gray-400 hover:border-gray-300"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             type="submit"
             className={`w-full py-3 rounded-xl text-sm font-semibold text-white transition-all ${
@@ -214,10 +279,16 @@ function TradeForm() {
                   </span>
                 </div>
               ))}
-              {code !== codeOnly && (
+              {nameOnly && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">종목명</span>
-                  <span className="font-semibold text-gray-800">{code.replace(/\(\d+\)$/, "")}</span>
+                  <span className="font-semibold text-gray-800">{nameOnly}</span>
+                </div>
+              )}
+              {isBuy && selectedCondition && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">매수 사유</span>
+                  <span className="font-semibold text-orange-600">{selectedCondition.label}</span>
                 </div>
               )}
             </div>
