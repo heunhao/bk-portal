@@ -6,10 +6,8 @@
 ##############################################################
 
 import sys
-import os
 import json
 import datetime
-import requests
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -19,24 +17,6 @@ try:
 except ImportError as e:
     print(json.dumps({"success": False, "error": f"패키지 미설치: {e}"}, ensure_ascii=False))
     sys.exit(1)
-
-SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
-
-
-def load_config():
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-    return cfg.get("MONITOR_SECRET", ""), cfg.get("PORTAL_URL", "http://localhost:3000")
-
-
-def get_target_stocks(portal_url, secret):
-    res = requests.get(
-        f"{portal_url}/api/hantoo/auto-buy/targets",
-        headers={"x-monitor-secret": secret},
-        timeout=10,
-    )
-    return [(t["stockCode"], t["stockName"]) for t in res.json().get("targets", [])]
 
 
 def rsi_cutler(close, period=14):
@@ -87,18 +67,17 @@ def process_stock(code, name, date_str):
 
 
 if __name__ == "__main__":
-    date_str = sys.argv[1] if len(sys.argv) > 1 else datetime.datetime.now().strftime("%Y-%m-%d")
-
-    try:
-        secret, portal_url = load_config()
-        stocks = get_target_stocks(portal_url, secret)
-    except Exception as e:
-        print(json.dumps({"success": False, "error": f"종목 목록 조회 실패: {e}"}, ensure_ascii=False))
+    if len(sys.argv) < 3:
+        print(json.dumps({"success": False, "error": "인자 부족: date stocks_json"}, ensure_ascii=False))
         sys.exit(1)
+
+    date_str   = sys.argv[1]
+    stocks_raw = json.loads(sys.argv[2])  # [{"code": "...", "name": "..."}, ...]
+    stocks     = [(s["code"], s["name"]) for s in stocks_raw]
 
     if not stocks:
-        print(json.dumps({"success": False, "error": "설정 페이지에 스캔 대상 종목이 없습니다."}, ensure_ascii=False))
-        sys.exit(1)
+        print(json.dumps({"success": False, "error": "스캔 대상 종목이 없습니다."}, ensure_ascii=False))
+        sys.exit(0)
 
     results = []
     with ThreadPoolExecutor(max_workers=10) as executor:
