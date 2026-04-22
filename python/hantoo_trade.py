@@ -3,21 +3,21 @@
 # - argv[1]: 종목코드 (6자리)
 # - argv[2]: 주문수량
 # - argv[3]: 구분 "BUY" | "SELL"
-# - argv[4]: 주문유형 "00"(지정가) | "01"(시장가)
-# - argv[5]: 주문단가 (시장가일 경우 "0")
+# - argv[4]: 주문구분 코드 (00=지정가, 01=시장가, ...)
+# - argv[5]: 주문단가 (시장가 계열은 "0")
+# - argv[6]: 거래소구분 "KRX" | "NXT" | "SOR" (기본 KRX)
 # - stdout : JSON 단일 객체 출력
 ##############################################################
 
-import sys
-import os
-import json
-import requests
-import datetime
+import sys, os, json, requests, datetime
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
 TOKEN_FILE  = os.path.join(SCRIPT_DIR, "hantoo_token.dat")
 BASE_URL    = "https://openapi.koreainvestment.com:9443"
+
+# 가격을 0으로 전송하는 주문구분 (시장가 계열)
+MARKET_ORDER_TYPES = {"01", "03", "04", "13", "14", "15", "16", "21", "23", "24"}
 
 
 def load_config():
@@ -41,10 +41,8 @@ def get_access_token(app_key, app_secret):
                     return td["access_token"]
             except Exception:
                 pass
-
-    url = f"{BASE_URL}/oauth2/tokenP"
     res = requests.post(
-        url,
+        f"{BASE_URL}/oauth2/tokenP",
         headers={"content-type": "application/json"},
         data=json.dumps({"grant_type": "client_credentials", "appkey": app_key, "appsecret": app_secret}),
         timeout=10,
@@ -58,10 +56,9 @@ def get_access_token(app_key, app_secret):
 
 
 def send_order(token, app_key, app_secret, cano, acnt_prdt_cd,
-               stock_code, qty, side, order_type, price):
-    url   = f"{BASE_URL}/uapi/domestic-stock/v1/trading/order-cash"
-    tr_id = "TTTC0012U" if side == "BUY" else "TTTC0011U"
-    final_price = "0" if order_type == "01" else str(price)
+               stock_code, qty, side, order_type, price, exchange="KRX"):
+    tr_id       = "TTTC0012U" if side == "BUY" else "TTTC0011U"
+    final_price = "0" if order_type in MARKET_ORDER_TYPES else str(price)
 
     headers = {
         "Content-Type": "application/json",
@@ -72,21 +69,27 @@ def send_order(token, app_key, app_secret, cano, acnt_prdt_cd,
         "custtype": "P",
     }
     payload = {
-        "CANO": cano,
+        "CANO":         cano,
         "ACNT_PRDT_CD": acnt_prdt_cd,
-        "PDNO": stock_code,
-        "ORD_DVSN": order_type,
-        "ORD_QTY": str(qty),
-        "ORD_UNPR": final_price,
+        "PDNO":         stock_code,
+        "ORD_DVSN":     order_type,
+        "ORD_QTY":      str(qty),
+        "ORD_UNPR":     final_price,
     }
-    res = requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
+    # 거래소 구분: KRX 이외(NXT, SOR)일 때만 명시
+    if exchange and exchange.upper() != "KRX":
+        payload["EXCG_ID_DVSN_CD"] = exchange.upper()
+
+    res = requests.post(f"{BASE_URL}/uapi/domestic-stock/v1/trading/order-cash",
+                        headers=headers, data=json.dumps(payload), timeout=15)
     res.raise_for_status()
     return res.json()
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 6:
-        print(json.dumps({"success": False, "error": "인자 부족: code qty side orderType price"}, ensure_ascii=False))
+        print(json.dumps({"success": False, "error": "인자 부족: code qty side orderType price [exchange]"},
+                         ensure_ascii=False))
         sys.exit(1)
 
     stock_code = sys.argv[1]
@@ -94,6 +97,7 @@ if __name__ == "__main__":
     side       = sys.argv[3].upper()
     order_type = sys.argv[4]
     price      = sys.argv[5]
+    exchange   = sys.argv[6].upper() if len(sys.argv) > 6 else "KRX"
 
     if side not in ("BUY", "SELL"):
         print(json.dumps({"success": False, "error": "side는 BUY 또는 SELL 이어야 합니다."}, ensure_ascii=False))
@@ -107,18 +111,18 @@ if __name__ == "__main__":
 
         token  = get_access_token(app_key, app_secret)
         result = send_order(token, app_key, app_secret, cano, acnt_prdt_cd,
-                            stock_code, qty, side, order_type, price)
+                            stock_code, qty, side, order_type, price, exchange)
 
         if result.get("rt_cd") == "0":
             print(json.dumps({
-                "success"  : True,
-                "orderNo"  : result.get("output", {}).get("ODNO", ""),
-                "message"  : result.get("msg1", "주문이 접수되었습니다."),
+                "success": True,
+                "orderNo": result.get("output", {}).get("ODNO", ""),
+                "message": result.get("msg1", "주문이 접수되었습니다."),
             }, ensure_ascii=False))
         else:
             print(json.dumps({
                 "success": False,
-                "error"  : result.get("msg1", "주문 실패"),
+                "error":   result.get("msg1", "주문 실패"),
             }, ensure_ascii=False))
 
     except FileNotFoundError:
