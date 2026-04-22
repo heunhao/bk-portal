@@ -81,6 +81,20 @@ export default async function HantooPage() {
           </Link>
 
           <Link
+            href="/hantoo/signals"
+            className="flex flex-col items-center justify-center gap-3 p-6 bg-white rounded-2xl border border-gray-200 transition-all hover:border-yellow-300 hover:bg-yellow-50"
+          >
+            <svg className="w-10 h-10 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <div className="text-center">
+              <p className="font-semibold text-gray-800 text-sm">매매 신호</p>
+              <p className="text-xs text-gray-400 mt-0.5">RSI 매수 · 보유 매도</p>
+            </div>
+          </Link>
+
+          <Link
             href="/hantoo/alerts"
             className="flex flex-col items-center justify-center gap-3 p-6 bg-white rounded-2xl border border-gray-200 transition-all hover:border-red-300 hover:bg-red-50"
           >
