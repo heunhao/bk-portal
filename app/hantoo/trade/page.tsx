@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 
-type Side     = "BUY" | "SELL";
-type Exchange = "KRX" | "NXT" | "SOR";
+type Side    = "BUY" | "SELL";
+type MktDisp = "KRX" | "NXT" | "통합";
 
 interface OrderType { value: string; label: string; noPrice: boolean; }
 interface QuoteData {
@@ -18,93 +17,88 @@ interface QuoteData {
 interface BuyCondition { id: string; label: string; }
 interface OrderResult  { success: boolean; orderNo?: string; message?: string; error?: string; }
 
-// 거래소별 주문구분 목록
-const ORDER_TYPES: Record<Exchange, OrderType[]> = {
-  KRX: [
-    { value: "00", label: "지정가",        noPrice: false },
-    { value: "01", label: "시장가",        noPrice: true  },
-    { value: "02", label: "조건부지정가",  noPrice: false },
-    { value: "03", label: "최유리지정가",  noPrice: true  },
-    { value: "04", label: "최우선지정가",  noPrice: true  },
-    { value: "05", label: "장전 시간외",   noPrice: false },
-    { value: "06", label: "장후 시간외",   noPrice: false },
-    { value: "07", label: "시간외 단일가", noPrice: false },
-    { value: "11", label: "IOC지정가",     noPrice: false },
-    { value: "12", label: "FOK지정가",     noPrice: false },
-    { value: "13", label: "IOC시장가",     noPrice: true  },
-    { value: "14", label: "FOK시장가",     noPrice: true  },
-    { value: "15", label: "IOC최유리",     noPrice: true  },
-    { value: "16", label: "FOK최유리",     noPrice: true  },
-    { value: "21", label: "중간가",        noPrice: true  },
-    { value: "22", label: "스톱지정가",    noPrice: false },
-    { value: "23", label: "중간가IOC",     noPrice: true  },
-    { value: "24", label: "중간가FOK",     noPrice: true  },
-  ],
-  NXT: [
-    { value: "00", label: "지정가",       noPrice: false },
-    { value: "03", label: "최유리지정가", noPrice: true  },
-    { value: "04", label: "최우선지정가", noPrice: true  },
-    { value: "11", label: "IOC지정가",    noPrice: false },
-    { value: "12", label: "FOK지정가",    noPrice: false },
-    { value: "13", label: "IOC시장가",    noPrice: true  },
-    { value: "14", label: "FOK시장가",    noPrice: true  },
-    { value: "15", label: "IOC최유리",    noPrice: true  },
-    { value: "16", label: "FOK최유리",    noPrice: true  },
-    { value: "21", label: "중간가",       noPrice: true  },
-    { value: "22", label: "스톱지정가",   noPrice: false },
-    { value: "23", label: "중간가IOC",    noPrice: true  },
-    { value: "24", label: "중간가FOK",    noPrice: true  },
-  ],
-  SOR: [], // SOR은 KRX와 동일하게 사용 (아래에서 KRX 목록 참조)
-};
-ORDER_TYPES.SOR = ORDER_TYPES.KRX;
+// KRX/NXT/통합 표시 → 실제 전송 exchange 값 (통합=SOR)
+const MKT_CYCLE: MktDisp[] = ["KRX", "NXT", "통합"];
+const MKT_TO_EXCHANGE: Record<MktDisp, string> = { KRX: "KRX", NXT: "NXT", "통합": "SOR" };
 
-const fmt = (n: number) => n.toLocaleString("ko-KR");
+// 거래소별 주문구분 목록
+const KRX_TYPES: OrderType[] = [
+  { value: "00", label: "지정가",        noPrice: false },
+  { value: "01", label: "시장가",        noPrice: true  },
+  { value: "02", label: "조건부지정가",  noPrice: false },
+  { value: "03", label: "최유리지정가",  noPrice: true  },
+  { value: "04", label: "최우선지정가",  noPrice: true  },
+  { value: "05", label: "장전 시간외",   noPrice: false },
+  { value: "06", label: "장후 시간외",   noPrice: false },
+  { value: "07", label: "시간외 단일가", noPrice: false },
+  { value: "11", label: "IOC지정가",     noPrice: false },
+  { value: "12", label: "FOK지정가",     noPrice: false },
+  { value: "13", label: "IOC시장가",     noPrice: true  },
+  { value: "14", label: "FOK시장가",     noPrice: true  },
+  { value: "15", label: "IOC최유리",     noPrice: true  },
+  { value: "16", label: "FOK최유리",     noPrice: true  },
+  { value: "21", label: "중간가",        noPrice: true  },
+  { value: "22", label: "스톱지정가",    noPrice: false },
+  { value: "23", label: "중간가IOC",     noPrice: true  },
+  { value: "24", label: "중간가FOK",     noPrice: true  },
+];
+const NXT_TYPES: OrderType[] = [
+  { value: "00", label: "지정가",       noPrice: false },
+  { value: "03", label: "최유리지정가", noPrice: true  },
+  { value: "04", label: "최우선지정가", noPrice: true  },
+  { value: "11", label: "IOC지정가",    noPrice: false },
+  { value: "12", label: "FOK지정가",    noPrice: false },
+  { value: "13", label: "IOC시장가",    noPrice: true  },
+  { value: "14", label: "FOK시장가",    noPrice: true  },
+  { value: "15", label: "IOC최유리",    noPrice: true  },
+  { value: "16", label: "FOK최유리",    noPrice: true  },
+  { value: "21", label: "중간가",       noPrice: true  },
+  { value: "22", label: "스톱지정가",   noPrice: false },
+  { value: "23", label: "중간가IOC",    noPrice: true  },
+  { value: "24", label: "중간가FOK",    noPrice: true  },
+];
+const ORDER_TYPES: Record<MktDisp, OrderType[]> = { KRX: KRX_TYPES, NXT: NXT_TYPES, "통합": KRX_TYPES };
+
+const fmt    = (n: number) => n.toLocaleString("ko-KR");
 const REFRESH = 5000;
 
 function TradeForm() {
   const searchParams = useSearchParams();
 
-  // 계좌
-  const [cano, setCano]     = useState("");
+  const [cano, setCano]   = useState("");
   const [acntPrdt, setAcnt] = useState("01");
 
-  // 종목
   const [inputCode, setInputCode]   = useState("");
   const [activeCode, setActiveCode] = useState("");
   const [quote, setQuote]           = useState<QuoteData | null>(null);
   const [quoteLoading, setQL]       = useState(false);
   const [quoteError, setQE]         = useState("");
 
-  // 주문
-  const [side, setSide]             = useState<Side>("BUY");
-  const [exchange, setExchange]     = useState<Exchange>("KRX");
-  const [orderTypeVal, setOTV]      = useState("00");
-  const [price, setPrice]           = useState("");
-  const [qty, setQty]               = useState("");
-  const [conditionId, setCondId]    = useState("");
-  const [conditions, setConds]      = useState<BuyCondition[]>([]);
+  const [side, setSide]         = useState<Side>("BUY");
+  const [mktDisp, setMktDisp]   = useState<MktDisp>("KRX");
+  const [orderTypeVal, setOTV]  = useState("00");
+  const [price, setPrice]       = useState("");
+  const [qty, setQty]           = useState("");
+  const [conditionId, setCondId] = useState("");
+  const [conditions, setConds]  = useState<BuyCondition[]>([]);
 
-  const [confirm, setConfirm]       = useState(false);
-  const [loading, setLoading]       = useState(false);
-  const [result, setResult]         = useState<OrderResult | null>(null);
+  const [confirm, setConfirm]   = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState<OrderResult | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const currentOrderTypes = ORDER_TYPES[exchange];
-  const selectedOT = currentOrderTypes.find(t => t.value === orderTypeVal)
-    ?? currentOrderTypes[0];
-  const noPrice = selectedOT?.noPrice ?? false;
+  const exchange         = MKT_TO_EXCHANGE[mktDisp];
+  const currentOrderTypes = ORDER_TYPES[mktDisp];
+  const selectedOT       = currentOrderTypes.find(t => t.value === orderTypeVal) ?? currentOrderTypes[0];
+  const noPrice          = selectedOT?.noPrice ?? false;
 
   // 거래소 변경 시 주문구분 초기화
   useEffect(() => {
-    const types = ORDER_TYPES[exchange];
-    if (!types.find(t => t.value === orderTypeVal)) {
-      setOTV(types[0]?.value ?? "00");
-    }
-  }, [exchange, orderTypeVal]);
+    const types = ORDER_TYPES[mktDisp];
+    if (!types.find(t => t.value === orderTypeVal)) setOTV(types[0]?.value ?? "00");
+  }, [mktDisp, orderTypeVal]);
 
-  // 계좌 정보 로드
   useEffect(() => {
     fetch("/api/hantoo/account-info")
       .then(r => r.json())
@@ -112,7 +106,6 @@ function TradeForm() {
       .catch(() => {});
   }, []);
 
-  // 매수 조건 로드
   useEffect(() => {
     fetch("/api/hantoo/buy-conditions")
       .then(r => r.json())
@@ -120,15 +113,16 @@ function TradeForm() {
       .catch(() => {});
   }, []);
 
-  // URL 파라미터
+  // URL 파라미터 (code, side, qty 지원)
   useEffect(() => {
     const c = searchParams.get("code");
     const s = searchParams.get("side");
+    const q = searchParams.get("qty");
     if (c) { setInputCode(c); setActiveCode(c); }
     if (s === "BUY" || s === "SELL") setSide(s);
+    if (q) setQty(q);
   }, [searchParams]);
 
-  // 호가 조회
   const fetchQuote = useCallback(async (code: string) => {
     if (!code) return;
     setQL(true); setQE("");
@@ -180,10 +174,7 @@ function TradeForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: activeCode,
-          name: quote?.stockName ?? "",
-          qty,
-          side,
+          code: activeCode, name: quote?.stockName ?? "", qty, side,
           orderType: orderTypeVal,
           price: noPrice ? "0" : price,
           exchange,
@@ -201,48 +192,66 @@ function TradeForm() {
   const down = quote && (quote.changeSign === "4" || quote.changeSign === "5");
   const priceColor = up ? "text-red-500" : down ? "text-blue-500" : "text-gray-900";
 
+  // ── StepButton 컴포넌트 (모바일 가시성 개선) ──
+  const StepBtn = ({
+    onClick, disabled, children,
+  }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-11 h-11 flex-shrink-0 flex items-center justify-center text-xl font-bold text-gray-600 bg-gray-100 active:bg-gray-200 disabled:opacity-30 select-none"
+    >
+      {children}
+    </button>
+  );
+
   return (
     <div className="flex flex-col h-[calc(100vh-48px)] bg-white">
 
-      {/* ── 종목 검색 ── */}
-      <div className="flex gap-2 px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
-        <input
-          type="text" value={inputCode}
-          onChange={e => setInputCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          onKeyDown={e => e.key === "Enter" && handleSearch()}
-          placeholder="종목코드 6자리" maxLength={6}
-          className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-orange-300"
-        />
-        <button onClick={handleSearch}
-          className="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-700">
-          조회
-        </button>
-      </div>
-
-      {/* ── 종목 정보 ── */}
-      <div className="px-3 py-2 border-b border-gray-100 bg-white flex-shrink-0">
-        {quote ? (
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="font-bold text-gray-900">{quote.stockName}</span>
-              <span className="text-xs text-gray-400 font-mono ml-2">{activeCode}</span>
-              {quoteLoading && <span className="text-xs text-gray-300 ml-1">·</span>}
-            </div>
-            <div className="text-right">
-              <p className={`text-xl font-bold ${priceColor}`}>{fmt(quote.price)}</p>
-              <p className={`text-xs font-semibold ${priceColor}`}>
-                {up ? "▲" : down ? "▼" : ""}
-                {fmt(Math.abs(quote.change))} ({up ? "+" : down ? "-" : ""}{Math.abs(quote.changeRate).toFixed(2)}%)
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-gray-400">종목을 조회하세요</p>
+      {/* ── 종목 검색 + 종목명 ── */}
+      <div className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+        <div className="flex gap-2">
+          <input
+            type="text" value={inputCode}
+            onChange={e => setInputCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onKeyDown={e => e.key === "Enter" && handleSearch()}
+            placeholder="종목코드 6자리" maxLength={6}
+            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 font-mono focus:outline-none focus:ring-2 focus:ring-orange-300"
+          />
+          <button onClick={handleSearch}
+            className="px-4 py-2 bg-gray-800 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 whitespace-nowrap">
+            조회
+          </button>
+        </div>
+        {/* 종목명 (조회 후 즉시 표시) */}
+        {quote && (
+          <p className="mt-1.5 text-sm font-bold text-gray-900">
+            {quote.stockName}
+            {quoteLoading && <span className="text-xs text-gray-300 ml-1 font-normal">갱신 중…</span>}
+          </p>
         )}
-        {quoteError && <p className="text-xs text-red-400 mt-0.5">{quoteError}</p>}
+        {quoteError && <p className="text-xs text-red-400 mt-1">{quoteError}</p>}
+        {!quote && !quoteError && (
+          <p className="text-xs text-gray-400 mt-1">종목코드를 입력하고 조회하세요</p>
+        )}
       </div>
 
-      {/* ── 계좌 표시 ── */}
+      {/* ── 현재가 ── */}
+      {quote && (
+        <div className="px-3 py-2 border-b border-gray-100 bg-white flex-shrink-0 flex items-center justify-between">
+          <span className="text-xs text-gray-400 font-mono">{activeCode}</span>
+          <div className="text-right">
+            <p className={`text-xl font-bold ${priceColor}`}>{fmt(quote.price)}</p>
+            <p className={`text-xs font-semibold ${priceColor}`}>
+              {up ? "▲" : down ? "▼" : ""}
+              {fmt(Math.abs(quote.change))} ({up ? "+" : down ? "-" : ""}{Math.abs(quote.changeRate).toFixed(2)}%)
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── 계좌 ── */}
       {cano && (
         <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 flex-shrink-0">
           <span className="text-xs text-gray-500">계좌 </span>
@@ -333,23 +342,21 @@ function TradeForm() {
             </div>
           )}
 
-          <div className="flex-1 px-3 pt-2 pb-2 space-y-3">
+          <div className="px-3 pt-2 pb-2 space-y-3">
 
-            {/* 거래소 구분 */}
-            <div>
-              <p className="text-[10px] text-gray-400 mb-1">거래소</p>
-              <div className="flex gap-1">
-                {(["KRX", "NXT", "SOR"] as Exchange[]).map(ex => (
-                  <button key={ex} onClick={() => setExchange(ex)}
-                    className={`flex-1 py-1.5 rounded-md text-xs font-bold border transition-all ${
-                      exchange === ex
-                        ? "border-gray-800 bg-gray-800 text-white"
-                        : "border-gray-300 text-gray-500"
-                    }`}>
-                    {ex}
-                  </button>
-                ))}
-              </div>
+            {/* 거래소 (사이클 버튼) */}
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-gray-400 whitespace-nowrap">거래소</p>
+              <button
+                onClick={() => setMktDisp(m => MKT_CYCLE[(MKT_CYCLE.indexOf(m) + 1) % MKT_CYCLE.length])}
+                className={`px-4 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 ${
+                  mktDisp === "KRX"  ? "border-orange-400 bg-orange-50 text-orange-700" :
+                  mktDisp === "NXT"  ? "border-purple-400 bg-purple-50 text-purple-700" :
+                  "border-blue-400 bg-blue-50 text-blue-700"
+                }`}
+              >
+                {mktDisp} <span className="text-[10px] opacity-60">▸</span>
+              </button>
             </div>
 
             {/* 주문구분 */}
@@ -361,9 +368,7 @@ function TradeForm() {
                 className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
               >
                 {currentOrderTypes.map(t => (
-                  <option key={t.value} value={t.value}>
-                    {t.value} {t.label}
-                  </option>
+                  <option key={t.value} value={t.value}>{t.value} {t.label}</option>
                 ))}
               </select>
             </div>
@@ -371,35 +376,31 @@ function TradeForm() {
             {/* 주문단가 */}
             <div>
               <p className="text-[10px] text-gray-400 mb-1">주문단가 (원)</p>
-              <div className={`flex items-center border rounded-lg overflow-hidden ${
+              <div className={`flex items-center rounded-lg border overflow-hidden ${
                 noPrice ? "bg-gray-100 border-gray-200" : "bg-white border-gray-300"
               }`}>
-                <button onClick={() => stepPrice(-100)} disabled={noPrice}
-                  className="px-3 py-2 text-gray-500 hover:bg-gray-50 disabled:opacity-20 font-bold text-base">−</button>
+                <StepBtn onClick={() => stepPrice(-100)} disabled={noPrice}>−</StepBtn>
                 <input type="number" value={noPrice ? "" : price}
                   onChange={e => setPrice(e.target.value)}
                   disabled={noPrice}
                   placeholder={noPrice ? "자동(0)" : "0"}
-                  className="flex-1 text-center text-sm font-semibold text-gray-900 bg-transparent focus:outline-none py-2 disabled:text-gray-400"
+                  className="flex-1 h-11 text-center text-sm font-semibold text-gray-900 bg-transparent focus:outline-none disabled:text-gray-400"
                 />
-                <button onClick={() => stepPrice(100)} disabled={noPrice}
-                  className="px-3 py-2 text-gray-500 hover:bg-gray-50 disabled:opacity-20 font-bold text-base">+</button>
+                <StepBtn onClick={() => stepPrice(100)} disabled={noPrice}>+</StepBtn>
               </div>
             </div>
 
             {/* 주문수량 */}
             <div>
               <p className="text-[10px] text-gray-400 mb-1">주문수량 (주)</p>
-              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
-                <button onClick={() => stepQty(-1)}
-                  className="px-3 py-2 text-gray-500 hover:bg-gray-50 font-bold text-base">−</button>
+              <div className="flex items-center rounded-lg border border-gray-300 overflow-hidden bg-white">
+                <StepBtn onClick={() => stepQty(-1)}>−</StepBtn>
                 <input type="number" value={qty}
                   onChange={e => setQty(e.target.value)}
                   placeholder="0" min={1}
-                  className="flex-1 text-center text-sm font-semibold text-gray-900 focus:outline-none py-2"
+                  className="flex-1 h-11 text-center text-sm font-semibold text-gray-900 focus:outline-none"
                 />
-                <button onClick={() => stepQty(1)}
-                  className="px-3 py-2 text-gray-500 hover:bg-gray-50 font-bold text-base">+</button>
+                <StepBtn onClick={() => stepQty(1)}>+</StepBtn>
               </div>
             </div>
 
@@ -412,6 +413,17 @@ function TradeForm() {
                 </span>
               </div>
             </div>
+
+            {/* 주문 버튼 (주문금액 바로 아래) */}
+            <button onClick={handleSubmit}
+              disabled={loading || !activeCode || !qty}
+              className={`w-full py-3.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-40 ${
+                side === "BUY"
+                  ? "bg-red-500 hover:bg-red-600 active:bg-red-700"
+                  : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
+              }`}>
+              {loading ? "처리 중..." : side === "BUY" ? "현금매수" : "현금매도"}
+            </button>
 
             {/* 매수 사유 */}
             {side === "BUY" && conditions.length > 0 && (
@@ -432,19 +444,6 @@ function TradeForm() {
               </div>
             )}
           </div>
-
-          {/* 주문 버튼 */}
-          <div className="px-3 pb-4 pt-1 flex-shrink-0">
-            <button onClick={handleSubmit}
-              disabled={loading || !activeCode || !qty}
-              className={`w-full py-3.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-40 ${
-                side === "BUY"
-                  ? "bg-red-500 hover:bg-red-600 active:bg-red-700"
-                  : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
-              }`}>
-              {loading ? "처리 중..." : side === "BUY" ? "현금매수" : "현금매도"}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -460,12 +459,12 @@ function TradeForm() {
             </div>
             <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm">
               {[
-                ["종목",   `${quote?.stockName ?? "—"} (${activeCode})`],
-                ["계좌",   `${cano}-${acntPrdt}`],
-                ["거래소", exchange],
+                ["종목",     `${quote?.stockName ?? "—"} (${activeCode})`],
+                ["계좌",     `${cano}-${acntPrdt}`],
+                ["거래소",   mktDisp],
                 ["주문구분", `${selectedOT?.value} ${selectedOT?.label}`],
-                ["수량",   `${fmt(parseInt(qty) || 0)}주`],
-                ["단가",   noPrice ? "자동(0원)" : `${fmt(parseInt(price) || 0)}원`],
+                ["수량",     `${fmt(parseInt(qty) || 0)}주`],
+                ["단가",     noPrice ? "자동(0원)" : `${fmt(parseInt(price) || 0)}원`],
                 ...(!noPrice && orderAmount > 0 ? [["주문금액", `${fmt(orderAmount)}원`]] : []),
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between">
@@ -494,15 +493,16 @@ function TradeForm() {
 }
 
 export default function HantooTradePage() {
+  const router = useRouter();
   return (
     <div className="flex flex-col h-screen bg-white">
       <header className="bg-white border-b border-gray-200 flex-shrink-0">
         <div className="px-4 py-3 flex items-center gap-3">
-          <Link href="/hantoo" className="text-gray-400 hover:text-gray-600">
+          <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-          </Link>
+          </button>
           <h1 className="text-base font-bold text-gray-900">주식 주문</h1>
         </div>
       </header>

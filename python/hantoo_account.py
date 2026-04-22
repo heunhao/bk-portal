@@ -110,11 +110,14 @@ if __name__ == "__main__":
             "success" : True,
             "holdings": holdings,
             "summary" : {
-                "totalEval"  : summary.get("tot_evlu_amt", "0"),
-                "stockEval"  : summary.get("scts_evlu_amt", "0"),
-                "deposit"    : summary.get("dnca_tot_amt", "0"),
-                "profitAmt"  : summary.get("evlu_pfls_smtl_amt", "0"),
-                "profitRate" : summary.get("asst_icdc_erng_rt", "0"),
+                "totalEval"   : summary.get("tot_evlu_amt", "0"),
+                "stockEval"   : summary.get("scts_evlu_amt", "0"),
+                "deposit"     : summary.get("dnca_tot_amt", "0"),
+                "depositD1"   : summary.get("nxdy_excc_amt", "0"),
+                "depositD2"   : summary.get("prvs_rcdl_excc_amt", "0"),
+                "withdrawable": summary.get("max_wdrw_amt", "0"),
+                "profitAmt"   : summary.get("evlu_pfls_smtl_amt", "0"),
+                "profitRate"  : summary.get("asst_icdc_erng_rt", "0"),
             },
         }, ensure_ascii=False))
 
